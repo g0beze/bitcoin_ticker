@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'coin_data.dart';
 import 'package:flutter/cupertino.dart';
 import 'dart:io' show Platform;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class PriceScreen extends StatefulWidget {
   @override
@@ -10,9 +12,47 @@ class PriceScreen extends StatefulWidget {
 
 class _PriceScreenState extends State<PriceScreen> {
   String selectedCurrency = 'USD';
+  var eRate;
+
+  @override
+  void initState() {
+    super.initState();
+    getData(selectedCurrency);
+  }
+
+  Future<void> getData(String value) async {
+    var url =
+        'https://apiv2.bitcoinaverage.com/indices/global/ticker/BTC$value';
+    http.Response response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      var pData = jsonDecode(response.body);
+      await updateUI(pData);
+      print(url);
+      print(pData['last']);
+      return pData;
+    } else {
+      print(response.statusCode);
+      setState(() {
+        eRate = 'Connection error';
+      });
+      updateUI(null);
+    }
+  }
+
+  Future<void> updateUI(dynamic pData) async {
+    if (pData != null && pData.containsKey('last')) {
+      setState(() {
+        eRate = pData['last'];
+      });
+    } else {
+      setState(() {
+        eRate = 'Data unavailable';
+      });
+    }
+  }
 
   DropdownButton<String> androidDropdown() {
-    List<DropdownMenuItem<String>>? dropdownItems = [];
+    List<DropdownMenuItem<String>> dropdownItems = [];
 
     for (String currency in currenciesList) {
       var newItem = DropdownMenuItem(
@@ -25,9 +65,11 @@ class _PriceScreenState extends State<PriceScreen> {
     return DropdownButton<String>(
       value: selectedCurrency,
       items: dropdownItems,
-      onChanged: (value) {
+      onChanged: (value) async {
+        await getData(value!);
         setState(() {
-          selectedCurrency = value!;
+          selectedCurrency = value;
+          print(value);
         });
       },
     );
@@ -42,7 +84,12 @@ class _PriceScreenState extends State<PriceScreen> {
     return CupertinoPicker(
       backgroundColor: Colors.lightBlue,
       itemExtent: 35,
-      onSelectedItemChanged: (selectedIndex) {},
+      onSelectedItemChanged: (selectedIndex) {
+        setState(() {
+          selectedCurrency = currenciesList[selectedIndex];
+        });
+        getData(selectedCurrency);
+      },
       children: pickerItems,
     );
   }
@@ -52,6 +99,7 @@ class _PriceScreenState extends State<PriceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('🤑 Coin Ticker'),
+        centerTitle: true,
       ),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -65,12 +113,13 @@ class _PriceScreenState extends State<PriceScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10.0),
               ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 15.0, horizontal: 28.0),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    vertical: 15.0, horizontal: 28.0),
                 child: Text(
-                  '1 BTC = ? USD',
+                  '1 BTC =  $eRate $selectedCurrency',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 20.0,
                     color: Colors.white,
                   ),
